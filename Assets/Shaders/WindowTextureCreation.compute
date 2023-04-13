@@ -1,0 +1,134 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// INPUTS
+int resolution;
+int beamMask1; // from left to right: sync2=00100, sync3=01010, smallG=01000, SGS=10001
+int beamMask2; // from left to right: sync2=00100, sync3=01010, smallG=01000, SGS=10001
+bool isFlipped;
+bool isRotatedClockwise;
+bool hasRoundTop;
+bool hasChurchTop;
+
+// OUTPUTS
+RWTexture2D<float4> Result;
+
+
+bool IsInRang(int currentX, int targetX, int tolerance)
+{
+    return abs(currentX - targetX) < tolerance;
+}
+
+float2 RotateAround(float2 pos, float2 pivot, float angle){
+    return float2(
+        pivot.x + cos(angle) * (pos.x - pivot.x) - sin(angle) * (pos.y - pivot.y),
+        pivot.y + sin(angle) * (pos.x - pivot.x) + cos(angle) * (pos.y - pivot.y)
+    );
+}
+
+
+float GetWindowSize()
+{
+    // "constant"
+    return hasChurchTop ? 0.402f : 0.5f;
+}
+float GetYOffset()
+{
+    // center - windowSize/2 - 1/8
+    return (0.5 - (GetWindowSize() * 0.5) - 0.125) * resolution;
+}
+
+bool IsWindow(int currentXorY)
+{
+    // center ± windowSize/2
+    return currentXorY > (0.5f - GetWindowSize() * 0.5f)  * resolution && currentXorY < (0.5f + GetWindowSize() * 0.5f) * resolution;
+}
+
+bool IsFrame(int x, int y, int frameThickness)
+{
+    // hasChurchTop -> no top bar
+    return (IsInRang(x, (0.5f - GetWindowSize() * 0.5f) * resolution, frameThickness) || IsInRang(x, (0.5f + GetWindowSize() * 0.5f) * resolution, frameThickness)) && IsWindow(y) ||
+           ((!hasChurchTop && IsInRang(y, (0.5f - GetWindowSize() * 0.5f) * resolution, frameThickness))|| IsInRang(y, (0.5f + GetWindowSize() * 0.5f) * resolution, frameThickness)) && IsWindow(x);
+}
+
+bool IsSubGlassArea(int currentX)
+{
+    return (beamMask1 == 8  && (currentX > (5/12.0f) * resolution && currentX < (9/12.0f) * resolution)) ||
+           (beamMask1 == 17 && (currentX > (4/12.0f) * resolution && currentX < (8/12.0f) * resolution)) ||
+           (beamMask1 != 8 && beamMask1 != 17 && IsWindow(currentX));
+}
+
+
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // CONSTANTS
+    float PI = 3.14159265359f;
+    float4 facadeColor = float4(1,0,0, hasChurchTop ? 0 : 1);
+    float4 windowColor = float4(0,1,0, hasChurchTop ? 0 : 1);
+    float4 woodColor =   float4(0,0,1, hasChurchTop ? 0 : 1);
+
+    float4 color = facadeColor;
+    int frameThickness = ceil(resolution / 60.0f);
+    int beamThickness = ceil(resolution / 100.0f);
+
+    int x = isFlipped ? resolution - id.x : id.x;
+    int y = id.y;
+
+    // shift y by offset
+    y -= hasChurchTop || hasRoundTop ? GetYOffset() : 0;
+
+    // window is everything in the center
+    bool isWindow = IsWindow(x) && IsWindow(y);
+    // or if round top also in the upper half circle
+    isWindow = isWindow || (hasRoundTop && distance(float2(x, y), float2(0.5f * resolution, GetWindowSize() * 0.5f * resolution)) < GetWindowSize() * 0.5f * resolution);
+    isWindow = isWindow || (hasChurchTop && distance(float2(x, y), float2((0.5f - GetWindowSize() * 0.5f) * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) < GetWindowSize() * resolution &&
+                                            distance(float2(x, y), float2((0.5f + GetWindowSize() * 0.5f) * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) < GetWindowSize() * resolution
+                           );
+
+    color = isWindow ? windowColor : color;
+
+    // wood is either the frame or a beam
+    bool isWood = IsFrame(x, y, frameThickness);
+    // rounded corners (circles at corner points with r=frameThickness)
+    isWood = isWood || distance(float2(x, y), float2((0.5f - GetWindowSize() * 0.5f) * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) < frameThickness * 0.9f ||
+                       distance(float2(x, y), float2((0.5f - GetWindowSize() * 0.5f) * resolution, (0.5f + GetWindowSize() * 0.5f) * resolution)) < frameThickness * 0.9f ||
+                       distance(float2(x, y), float2((0.5f + GetWindowSize() * 0.5f) * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) < frameThickness * 0.9f ||
+                       distance(float2(x, y), float2((0.5f + GetWindowSize() * 0.5f) * resolution, (0.5f + GetWindowSize() * 0.5f) * resolution)) < frameThickness * 0.9f;
+    // round top
+    isWood = isWood || (hasRoundTop && y < (0.5f - GetWindowSize() * 0.5f) * resolution &&
+                                       distance(float2(x, y), float2(0.5f * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) > GetWindowSize() * 0.5f * resolution - frameThickness * 0.9f &&
+                                       distance(float2(x, y), float2(0.5f * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) < GetWindowSize() * 0.5f * resolution + frameThickness * 0.9f);
+    // church top
+    isWood = isWood || (hasChurchTop && y < (0.5f - GetWindowSize() * 0.5f) * resolution &&
+                                        ((
+                                            x > 0.5f * resolution - 1 &&
+                                            distance(float2(x, y), float2((0.5f - GetWindowSize() * 0.5f) * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) > GetWindowSize() * resolution - frameThickness * 0.9f &&
+                                            distance(float2(x, y), float2((0.5f - GetWindowSize() * 0.5f) * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) < GetWindowSize() * resolution + frameThickness * 0.9f
+                                        ) || (
+                                            x < 0.5f * resolution + 1 &&
+                                            distance(float2(x, y), float2((0.5f + GetWindowSize() * 0.5f) * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) > GetWindowSize() * resolution - frameThickness * 0.9f &&
+                                            distance(float2(x, y), float2((0.5f + GetWindowSize() * 0.5f) * resolution, (0.5f - GetWindowSize() * 0.5f) * resolution)) < GetWindowSize() * resolution + frameThickness * 0.9f
+                                        )));
+
+    // beams (only now rotation is a important/makes a difference)
+    float2 xyPrime = RotateAround(float2(x, y), float2(0.5f * resolution, 0.5f * resolution), PI * 0.5f);
+    x = isRotatedClockwise ? xyPrime.x : x;
+    y = isRotatedClockwise ? xyPrime.y : y;
+
+    for(int i = 0; i < 5; i++){
+        bool hasBeamAtPos = (beamMask1 & (1 << i)) > 0;
+        isWood = isWood || (!hasChurchTop && (hasBeamAtPos && IsInRang(x, (0.25f + 0.5f * ((5 - i) / 6.0f)) * resolution, beamThickness) && IsWindow(y)));
+    }
+    for(int i = 0; i < 5; i++){
+        bool hasBeamAtPos = (beamMask2 & (1 << i)) > 0;
+        isWood = isWood || (!hasChurchTop && (hasBeamAtPos && IsInRang(y, (0.25f + 0.5f * ((5 - i) / 6.0f)) * resolution, beamThickness) && IsSubGlassArea(x)));
+    }
+
+
+    color = isWood ? woodColor : color;
+    // TODO: add deco, ...
+
+    Result[id.xy] = color;
+}

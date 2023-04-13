@@ -1,0 +1,117 @@
+#pragma kernel CSMain
+
+int resolution;
+uint nrOfVerticalSubdivisions;
+uint nrOfHorizontalSubdivisions;
+uint nrOfGlasses;
+bool isFlipped;  // for handel
+bool hasRoundTop; // ignore for now
+
+
+RWTexture2D<float4> Result;
+
+
+bool IsDoor(float2 xy)
+{
+    return xy.x > 0.25f * resolution  && xy.x < 0.75f * resolution &&   // x
+           xy.y > 0.055f * resolution && xy.y < resolution - 3;         // y; 0.055... = 1/18
+}
+
+bool IsPanelOrWindow(float2 xy, uint vertDivs, uint horiDivs, bool checkForPanel)
+{
+    // 0.055... = 1/18 (height subdivision)
+    // 0.077    = 1/15 (width subdivision)
+    int panelThickness = ceil(resolution / 100.0f);
+
+    bool isPanel = false;
+    bool isWindow = false;
+
+    float cx;
+    float rx;
+
+    float cy;
+    float ry;
+
+    for(uint i = 0; i < vertDivs; i++){
+        switch (vertDivs){
+            case 1:
+                cy = 9.0f;
+                ry = 7.0f;
+                break;
+            case 2:
+                cy = i == 0 ? 6.0f : 13.5f;
+                ry = i == 0 ? 4.0f :  2.5f;
+                break;
+            case 3:
+                cy = 4.0f + 5.0f * i;
+                ry = 2.0f;
+                break;
+        }
+        cy *= 0.055f * resolution;
+        ry *= 0.055f * resolution;
+        for(uint j = 0; j < horiDivs; j++){
+            switch (horiDivs){
+                case 1:
+                    cx = 7.5f;
+                    rx = 5.5f;
+                    break;
+                case 2:
+                    cx = j == 0 ? 4.5f : 10.5f;
+                    rx = 2.5f;
+                    break;
+                case 3:
+                    cx = 3.5f + 4.0f * j;
+                    rx = 1.5f;
+                    break;
+            }
+            cx = (cx * 0.5f * 0.066f + 0.25f) * resolution;
+            rx = rx * 0.5f * 0.066f * resolution;
+
+            float x_dist = distance(xy.x, cx);
+            float y_dist = distance(xy.y, cy);
+
+            isPanel = isPanel || ((x_dist > rx - panelThickness && x_dist < rx && y_dist < ry) ||
+                                  (y_dist > ry - panelThickness && y_dist < ry && x_dist < rx)   );
+            isWindow = isWindow || (i < nrOfGlasses && x_dist <= rx - panelThickness && y_dist <= ry - panelThickness);
+        }
+    }
+
+    return (checkForPanel && isPanel) || (!checkForPanel && isWindow);
+}
+
+
+bool IsHandle(float2 xy)
+{
+    // TODO: add more handles
+    return distance(xy.xy, float2((0.25f + 0.03f) * resolution, 0.6f * resolution)) < 0.02f * resolution ||
+           distance(xy.xy, float2((0.25f + 0.03f) * resolution, 0.4f * resolution)) < 0.02f * resolution ||
+           (distance(xy.x, (0.25f + 0.03f) * resolution) < 0.012f * resolution && distance(xy.y, 0.5 * resolution) < 0.15f * resolution);
+}
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // CONSTANTS
+    float4 facadeColor = float4(1,0,0,1);
+    float4 windowColor = float4(0,1,0,1);
+    float4 woodColor =   float4(0,0,1,1);
+    float4 panelColor =  float4(0.3f,0,0.7f,1);
+    float4 handleColor = float4(0.2f,0.1f,0.7f,1);
+    // TODO: handle (with alpha)
+
+    float4 color = facadeColor;
+
+    float2 xy = float2(isFlipped ? resolution - id.x : id.x, id.y);
+
+    color = IsDoor(id.xy) ? woodColor : color;
+
+    bool isPanel = IsPanelOrWindow(id.xy, nrOfVerticalSubdivisions, nrOfHorizontalSubdivisions, true);
+    color = isPanel ? panelColor : color;
+
+    bool isWindow = IsPanelOrWindow(id.xy, nrOfVerticalSubdivisions, nrOfHorizontalSubdivisions, false);
+    color = isWindow ? windowColor : color;
+
+    color = IsHandle(id.xy) ? handleColor : color;
+
+    Result[id.xy] = color;
+}

@@ -1,0 +1,38 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+int resolution;
+float2 h;  // min..max
+float2 s;  // min..max
+float2 l;  // min..max
+
+
+RWTexture2D<float4> Result;
+
+
+float rand2dTo1d(float2 value){
+    float2 smallValue = sin(value);
+    float random = dot(smallValue, float2(12.9898, 78.233));
+    random = frac(sin(random) * 143758.5453);
+    return random;
+}
+
+// from https://www.shadertoy.com/view/lsS3Wc
+float3 hsv2rgb(float3 c)
+{
+    float3 rgb = clamp( abs(fmod(c.x*6.0+float3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0 );
+    return c.z * lerp(float3(1,1,1), rgb, c.y);
+}
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float3 col = hsv2rgb(
+        float3(
+            lerp(h.x, h.y, rand2dTo1d(float2(id.x,      id.y    ))),
+            lerp(s.x, s.y, rand2dTo1d(float2(id.x,      id.y + 1))),
+            lerp(l.x, l.y, rand2dTo1d(float2(id.x + 1,  id.y    )))
+        )
+    );
+    Result[id.xy] = float4(col.x, col.y, col.z, 1);
+}

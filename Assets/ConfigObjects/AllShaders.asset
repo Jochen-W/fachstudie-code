@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 433bda49c148c4d47bc188a3587438a3, type: 3}
+  m_Name: AllShaders
+  m_EditorClassIdentifier: 
+  allShaders:
+  - shaderType: 0
+    shader: {fileID: 7200000, guid: 1dabe5ad8e6ab7849b6685d903fbfa75, type: 3}
+  - shaderType: 1
+    shader: {fileID: 7200000, guid: 68d521e017cf2e74bad77b90e00bfc30, type: 3}
+  - shaderType: 2
+    shader: {fileID: 7200000, guid: 914325784c935064184bdf6a782ed6aa, type: 3}
+  - shaderType: 3
+    shader: {fileID: 7200000, guid: d2aaa22e6e3104e448978d3e0d910360, type: 3}
+  - shaderType: 4
+    shader: {fileID: 7200000, guid: 038ba777e4f2cd24b987bc2a936047d5, type: 3}

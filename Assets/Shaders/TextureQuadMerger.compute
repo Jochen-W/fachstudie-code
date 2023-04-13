@@ -1,0 +1,19 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+uint base_resolution;
+RWTexture2D<float4> tl;
+RWTexture2D<float4> tr;
+RWTexture2D<float4> bl;
+RWTexture2D<float4> br;
+
+RWTexture2D<float4> Result;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    Result[id.xy] = (id.x <  base_resolution && id.y <  base_resolution ? 1 : 0) * bl[id.xy] +
+                    (id.x <  base_resolution && id.y >= base_resolution ? 1 : 0) * tl[float2(id.x,                   id.y - base_resolution)] +
+                    (id.x >= base_resolution && id.y <  base_resolution ? 1 : 0) * br[float2(id.x - base_resolution, id.y)] +
+                    (id.x >= base_resolution && id.y >= base_resolution ? 1 : 0) * tr[float2(id.x - base_resolution, id.y - base_resolution)];
+}

@@ -1,0 +1,36 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+struct MeshProperties {
+    float4x4 mat;
+    float3 heightLookupPos;
+};
+RWStructuredBuffer<MeshProperties> _Properties;
+AppendStructuredBuffer<uint> _InFrustum;
+
+float4 leftPlane;
+float4 rightPlane;
+
+float getSignedDistanceToPlane(float4 plane, float3 pos){
+    return dot(plane.xyz, pos) + plane.w;
+}
+
+int isOnOrForwardPlan(float4 plane, float3 pos){
+    // 5 as static radius
+    return sign(getSignedDistanceToPlane(plane, pos) + 5);
+}
+
+[numthreads(32,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    MeshProperties mp = _Properties[id.x];
+    float3 pos = float3(mp.mat[0][3], mp.mat[1][3], mp.mat[2][3]);
+    if(min(isOnOrForwardPlan(leftPlane, pos), isOnOrForwardPlan(rightPlane, pos)) == 1){
+        _InFrustum.Append(id.x);
+    }
+}
+
+// IDEA: send facade-info to GPU and calculate it on GPU
+

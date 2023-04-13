@@ -1,0 +1,25 @@
+#pragma kernel CSMain
+
+int resolution;
+RWTexture2D<float4> Input;
+
+RWTexture2D<float4> Result;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float4 tl = Input[min(max(float2(id.x - 1, id.y + 1), 0), resolution)];
+    float4 tm = Input[min(max(float2(id.x    , id.y + 1), 0), resolution)];
+    float4 tr = Input[min(max(float2(id.x + 1, id.y + 1), 0), resolution)];
+    float4 ml = Input[min(max(float2(id.x - 1, id.y    ), 0), resolution)];
+    float4 mm = Input[min(max(float2(id.x    , id.y    ), 0), resolution)];
+    float4 mr = Input[min(max(float2(id.x + 1, id.y    ), 0), resolution)];
+    float4 bl = Input[min(max(float2(id.x - 1, id.y - 1), 0), resolution)];
+    float4 bm = Input[min(max(float2(id.x    , id.y - 1), 0), resolution)];
+    float4 br = Input[min(max(float2(id.x + 1, id.y - 1), 0), resolution)];
+
+    // 1/16 = 0.0625
+    // 1/ 8 = 0.125
+    // 1/ 4 = 0.25
+    Result[id.xy] = 0.0625 * (tl + tr + bl + br) + 0.125 * (tm + bm + ml + mr) + 0.25 * mm;
+}

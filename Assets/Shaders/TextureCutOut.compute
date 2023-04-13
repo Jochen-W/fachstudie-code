@@ -1,0 +1,14 @@
+#pragma kernel CSMain
+
+int offset;
+RWTexture2D<float4> Input;
+
+
+RWTexture2D<float4> Result;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float4 read = Input[id.xy + uint2(0, offset)];
+    Result[id.xy] = max(read.r, max(read.g, read.b)) > 0.5 ? read : float4(1,0,0,1);  // float offset correction
+}

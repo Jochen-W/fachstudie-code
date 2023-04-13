@@ -1,0 +1,32 @@
+#pragma kernel CSMain
+
+float2 resolution;
+RWTexture2D<float4> Input;
+
+RWTexture2D<float4> Result;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // use the blue component from the Input to calculate the normal
+    // red = left/right
+    // green = top/down
+    // blue = front
+    float t1 = Input[min(max(float2(id.x    , id.y + 1), 0), resolution)].b;
+    float t2 = Input[min(max(float2(id.x    , id.y + 2), 0), resolution)].b;
+    float l1 = Input[min(max(float2(id.x - 1, id.y    ), 0), resolution)].b;
+    float l2 = Input[min(max(float2(id.x - 2, id.y    ), 0), resolution)].b;
+    float c  = Input[min(max(float2(id.x    , id.y    ), 0), resolution)].b;
+    float r1 = Input[min(max(float2(id.x + 1, id.y    ), 0), resolution)].b;
+    float r2 = Input[min(max(float2(id.x + 2, id.y    ), 0), resolution)].b;
+    float b1 = Input[min(max(float2(id.x    , id.y - 1), 0), resolution)].b;
+    float b2 = Input[min(max(float2(id.x    , id.y - 2), 0), resolution)].b;
+
+    float3 col = normalize(float3(
+        (l1 - c) * 0.66f + (c - r1) * 0.66f + (l2 - c) * 0.33f + (c - r2) * 0.33f,
+        (b1 - c) * 0.66f + (c - t1) * 0.66f + (b2 - c) * 0.33f + (c - t2) * 0.33f,
+        1
+    )) * 0.5f + 0.5f;
+
+    Result[id.xy] = float4(col.x, col.y, col.z, 1);
+}
